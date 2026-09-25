@@ -30,6 +30,22 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  
+  # Backend Supabase (auth + base de données + API REST)
+  supabase_flutter: ^2.5.0
+
+  # Cache local pour le mode hors-ligne
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Gestion d'état simple et légère
+  provider: ^6.1.2
+
+   # Polices Google (Lora pour les titres, Inter pour le corps)
+  google_fonts: ^6.2.1
+
+  # Génération d'identifiants uniques (utile pour Hive)
+  uuid: ^4.4.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -45,6 +61,13 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+  # Génération de code Hive (adapters)
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.11
+
+  # Pour les tests unitaires du repository (mock)
+  mockito: ^5.4.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
