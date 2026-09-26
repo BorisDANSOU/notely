@@ -1,11 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../models/note_model.dart';
 
-/// Datasource distant : parle directement à l'API Supabase.
-/// C'est la seule classe de tout le projet qui connaît les requêtes
-/// Supabase spécifiques aux notes.
 abstract class NotesRemoteDataSource {
   Future<List<NoteModel>> getNotes();
   Future<NoteModel> getNoteById(String id);
@@ -17,18 +15,17 @@ abstract class NotesRemoteDataSource {
   Future<void> deleteNote(String id);
 }
 
+/// Implémentation utilisant l'API REST (PostgREST) de Supabase via Dio,
+/// avec injection explicite du JWT et gestion du refresh token
+/// (voir AuthInterceptor) — plutôt que le client haut-niveau
+/// supabase_flutter, qui gère ça en interne de façon invisible.
 class NotesRemoteDataSourceImpl implements NotesRemoteDataSource {
-  final SupabaseClient supabaseClient;
+  final Dio dio;
 
-  NotesRemoteDataSourceImpl({required this.supabaseClient});
+  NotesRemoteDataSourceImpl({required this.dio});
 
-  /// Raccourci vers la table 'notes'
-  SupabaseQueryBuilder get _notesTable => supabaseClient.from('notes');
-
-  /// Id de l'utilisateur actuellement connecté — nécessaire pour
-  /// créer une note (RLS exige que user_id corresponde à auth.uid())
   String get _currentUserId {
-    final user = supabaseClient.auth.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       throw const ServerException('Utilisateur non connecté.');
     }
@@ -38,32 +35,32 @@ class NotesRemoteDataSourceImpl implements NotesRemoteDataSource {
   @override
   Future<List<NoteModel>> getNotes() async {
     try {
-      // Grâce à la RLS, cette requête ne renvoie QUE les notes
-      // de l'utilisateur connecté, même sans filtre explicite ici.
-      final response = await _notesTable.select().order(
-        'updated_at',
-        ascending: false,
+      final response = await dio.get(
+        '/notes',
+        queryParameters: {'order': 'updated_at.desc'},
       );
-
-      return (response as List)
+      return (response.data as List)
           .map((json) => NoteModel.fromJson(json as Map<String, dynamic>))
           .toList();
-    } on PostgrestException catch (e) {
-      throw ServerException(e.message);
-    } catch (e) {
-      throw ServerException('Erreur lors de la récupération des notes : $e');
+    } on DioException catch (e) {
+      throw ServerException(_extractMessage(e));
     }
   }
 
   @override
   Future<NoteModel> getNoteById(String id) async {
     try {
-      final response = await _notesTable.select().eq('id', id).single();
-      return NoteModel.fromJson(response);
-    } on PostgrestException catch (e) {
-      throw ServerException(e.message);
-    } catch (e) {
-      throw ServerException('Erreur lors de la récupération de la note : $e');
+      final response = await dio.get(
+        '/notes',
+        queryParameters: {'id': 'eq.$id'},
+      );
+      final results = response.data as List;
+      if (results.isEmpty) {
+        throw const ServerException('Note introuvable.');
+      }
+      return NoteModel.fromJson(results.first as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ServerException(_extractMessage(e));
     }
   }
 
@@ -74,54 +71,60 @@ class NotesRemoteDataSourceImpl implements NotesRemoteDataSource {
   }) async {
     try {
       final now = DateTime.now().toIso8601String();
-      final response = await _notesTable
-          .insert({
-            'user_id': _currentUserId,
-            'title': title,
-            'content': content,
-            'created_at': now,
-            'updated_at': now,
-          })
-          .select()
-          .single();
-
-      return NoteModel.fromJson(response);
-    } on PostgrestException catch (e) {
-      throw ServerException(e.message);
-    } catch (e) {
-      throw ServerException('Erreur lors de la création de la note : $e');
+      final response = await dio.post(
+        '/notes',
+        // Demande à PostgREST de renvoyer la ligne créée dans la réponse.
+        options: Options(headers: {'Prefer': 'return=representation'}),
+        data: {
+          'user_id': _currentUserId,
+          'title': title,
+          'content': content,
+          'created_at': now,
+          'updated_at': now,
+        },
+      );
+      final created = (response.data as List).first as Map<String, dynamic>;
+      return NoteModel.fromJson(created);
+    } on DioException catch (e) {
+      throw ServerException(_extractMessage(e));
     }
   }
 
   @override
   Future<NoteModel> updateNote(NoteModel note) async {
     try {
-      final response = await _notesTable
-          .update({
-            'title': note.title,
-            'content': note.content,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', note.id)
-          .select()
-          .single();
-
-      return NoteModel.fromJson(response);
-    } on PostgrestException catch (e) {
-      throw ServerException(e.message);
-    } catch (e) {
-      throw ServerException('Erreur lors de la modification de la note : $e');
+      final response = await dio.patch(
+        '/notes',
+        queryParameters: {'id': 'eq.${note.id}'},
+        options: Options(headers: {'Prefer': 'return=representation'}),
+        data: {
+          'title': note.title,
+          'content': note.content,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      );
+      final updated = (response.data as List).first as Map<String, dynamic>;
+      return NoteModel.fromJson(updated);
+    } on DioException catch (e) {
+      throw ServerException(_extractMessage(e));
     }
   }
 
   @override
   Future<void> deleteNote(String id) async {
     try {
-      await _notesTable.delete().eq('id', id);
-    } on PostgrestException catch (e) {
-      throw ServerException(e.message);
-    } catch (e) {
-      throw ServerException('Erreur lors de la suppression de la note : $e');
+      await dio.delete('/notes', queryParameters: {'id': 'eq.$id'});
+    } on DioException catch (e) {
+      throw ServerException(_extractMessage(e));
     }
+  }
+
+  /// Extrait un message d'erreur lisible depuis une réponse PostgREST.
+  String _extractMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['message'] != null) {
+      return data['message'] as String;
+    }
+    return e.message ?? 'Erreur réseau inconnue.';
   }
 }
