@@ -54,6 +54,8 @@ Notely permet à un utilisateur de créer un compte, se connecter, puis gérer s
 | Gestion d'état | Provider |
 | Typographie | Google Fonts (Lora + Inter) |
 | Tests | flutter_test + Mockito |
+| Appels REST + intercepteur JWT | Dio |
+| Injection de dépendances | get_it |
 
 ---
 
@@ -230,6 +232,10 @@ flutter test
 - Blocage de la création de note hors-ligne
 - Création d'une note en ligne + mise en cache immédiate
 
+**10 tests unitaires** couvrent les deux repositories principaux :
+- `NotesRepositoryImpl` (5 tests) : stratégie réseau-d'abord/cache, gestion d'erreurs, blocage hors-ligne
+- `AuthRepositoryImpl` (5 tests) : connexion, inscription, déconnexion, gestion des erreurs d'authentification
+
 ---
 
 ##  Choix techniques
@@ -240,6 +246,23 @@ flutter test
 - **Écriture/modification/suppression bloquées hors-ligne** : évite les conflits de synchronisation qu'une vraie stratégie offline-first (avec file d'attente et résolution de conflits) demanderait à gérer — hors du périmètre de ce projet.
 
 ---
+
+##  Gestion du JWT et du Refresh Token
+
+Bien que `supabase_flutter` gère l'authentification de façon transparente, la couche `notes` utilise volontairement un **client Dio dédié avec un intercepteur explicite** (`AuthInterceptor`) pour démontrer concrètement :
+
+- **L'injection du token** : chaque requête REST vers `/rest/v1/notes` reçoit automatiquement l'en-tête `Authorization: Bearer <access_token>` de l'utilisateur connecté.
+- **Le rafraîchissement du token** : en cas de réponse `401` (token expiré), l'intercepteur appelle `supabaseClient.auth.refreshSession()`, récupère un nouveau token, et **rejoue automatiquement** la requête initiale — sans jamais déconnecter l'utilisateur inutilement.
+
+Voir `lib/core/network/auth_interceptor.dart` et `lib/core/network/dio_client.dart`.
+
+##  Injection de dépendances
+
+Toutes les dépendances (repositories, datasources, détection réseau) sont enregistrées dans un unique conteneur (`lib/core/di/injection_container.dart`) via **get_it**. Les Providers ne dépendent que d'interfaces (`AuthRepository`, `NotesRepository`, `NetworkInfo`) — jamais d'implémentations concrètes construites à la main — respectant le principe d'inversion de dépendance de la Clean Architecture.
+
+##  Intégration continue
+
+Un workflow GitHub Actions (`.github/workflows/flutter_ci.yml`) exécute automatiquement `flutter analyze` et `flutter test` à chaque push/pull request sur `main`.
 
 ##  Limites connues
 
