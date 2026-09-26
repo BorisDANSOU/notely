@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+
+import 'core/cache/hive_config.dart';
+import 'core/network/network_info.dart';
+import 'features/notes/data/datasources/notes_local_datasource.dart';
 
 import 'core/network/supabase_client.dart';
 import 'core/theme/app_theme.dart';
@@ -16,6 +21,8 @@ import 'features/notes/presentation/providers/notes_provider.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseClientProvider.initialize();
+  await HiveConfig.initialize();
+
   runApp(const NotelyApp());
 }
 
@@ -41,7 +48,10 @@ class NotelyApp extends StatelessWidget {
               remoteDataSource: NotesRemoteDataSourceImpl(
                 supabaseClient: SupabaseClientProvider.client,
               ),
+              localDataSource: NotesLocalDataSourceImpl(),
+              networkInfo: NetworkInfoImpl(connectivity: Connectivity()),
             ),
+            networkInfo: NetworkInfoImpl(connectivity: Connectivity()),
           ),
         ),
       ],
