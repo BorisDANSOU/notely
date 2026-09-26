@@ -23,6 +23,12 @@ class AppTextStyles {
     color: AppColors.textPrimary,
   );
 
+  static TextStyle get body => GoogleFonts.inter(
+    fontSize: 15,
+    fontWeight: FontWeight.normal,
+    color: AppColors.textPrimary,
+  );
+
   //Texte courant (contenu des notes, lables, etc.)
   static TextStyle get caption => GoogleFonts.inter(
     fontSize: 13,
