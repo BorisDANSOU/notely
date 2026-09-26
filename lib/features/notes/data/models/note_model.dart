@@ -14,7 +14,7 @@ class NoteModel extends Note {
   });
 
   /// Crée une instance de NoteModel à partir du JSON (par exemple, à partir d'une réponse JSON).
-  factory NoteModel.fromMap(Map<String, dynamic> json) {
+  factory NoteModel.fromJson(Map<String, dynamic> json) {
     return NoteModel(
       id: json['id'] as String,
       userId: json['user_id'] as String,
