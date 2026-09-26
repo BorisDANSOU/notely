@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
-//Champ de texte réutilisé sur les écrans Login et Register
-class AuthTextField extends StatelessWidget {
+/// Champ de texte réutilisé sur les écrans Login et Register.
+/// Si obscureText est true (champs mot de passe), affiche une icône
+/// "œil" permettant de basculer entre texte masqué/visible.
+class AuthTextField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String hint;
@@ -23,22 +25,44 @@ class AuthTextField extends StatelessWidget {
   });
 
   @override
+  State<AuthTextField> createState() => _AuthTextFieldState();
+}
+
+class _AuthTextFieldState extends State<AuthTextField> {
+  // État local : le champ démarre masqué si c'est un champ mot de passe
+  late bool _isObscured = widget.obscureText;
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          widget.label,
           style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         TextFormField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
+          controller: widget.controller,
+          obscureText: _isObscured,
+          keyboardType: widget.keyboardType,
           style: AppTextStyles.body,
-          validator: validator,
-          decoration: InputDecoration(hintText: hint),
+          validator: widget.validator,
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            // L'icône œil n'apparaît que sur les champs mot de passe
+            suffixIcon: widget.obscureText
+                ? IconButton(
+                    icon: Icon(
+                      _isObscured
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: AppColors.textSecondary,
+                    ),
+                    onPressed: () => setState(() => _isObscured = !_isObscured),
+                  )
+                : null,
+          ),
         ),
       ],
     );
