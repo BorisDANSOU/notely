@@ -49,4 +49,21 @@ class NotesProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Crée une note et l'ajoute en tête de la liste locale.
+  Future<void> createNote({
+    required String title,
+    required String content,
+  }) async {
+    final newNote = await repository.createNote(title: title, content: content);
+    _notes = [newNote, ..._notes];
+    notifyListeners();
+  }
+
+  /// Met à jour une note et remplace l'ancienne version dans la liste locale.
+  Future<void> updateNote(Note note) async {
+    final updated = await repository.updateNote(note);
+    _notes = _notes.map((n) => n.id == updated.id ? updated : n).toList();
+    notifyListeners();
+  }
 }
