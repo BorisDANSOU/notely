@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../providers/notes_provider.dart';
 import '../widgets/note_card.dart';
+import '../widgets/offline_banner.dart';
 import 'note_form_page.dart';
 
 class NotesListPage extends StatefulWidget {
@@ -32,47 +33,13 @@ class _NotesListPageState extends State<NotesListPage> {
       appBar: AppBar(title: Text('Mes notes', style: AppTextStyles.heading2)),
       body: Consumer<NotesProvider>(
         builder: (context, notesProvider, _) {
-          switch (notesProvider.status) {
-            case NotesStatus.initial:
-            case NotesStatus.loading:
-              return const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              );
-
-            case NotesStatus.error:
-              return _ErrorState(
-                message:
-                    notesProvider.errorMessage ?? 'Une erreur est survenue.',
-                onRetry: () => notesProvider.loadNotes(),
-              );
-
-            case NotesStatus.loaded:
-              if (notesProvider.notes.isEmpty) {
-                return const _EmptyState();
-              }
-              return RefreshIndicator(
-                onRefresh: notesProvider.loadNotes,
-                color: AppColors.primary,
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: notesProvider.notes.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final note = notesProvider.notes[index];
-                    return NoteCard(
-                      note: note,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => NoteFormPage(existingNote: note),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              );
-          }
+          return Column(
+            children: [
+              // Bannière affichée uniquement si l'utilisateur est hors-ligne
+              if (notesProvider.isOffline) const OfflineBanner(),
+              Expanded(child: _buildContent(notesProvider)),
+            ],
+          );
         },
       ),
       floatingActionButton: FloatingActionButton(
@@ -84,6 +51,51 @@ class _NotesListPageState extends State<NotesListPage> {
         child: const Icon(Icons.add, color: AppColors.surface),
       ),
     );
+  }
+
+  /// Construit le contenu principal de l'écran selon l'état des notes
+  /// (chargement, liste chargée, vide, ou erreur).
+  Widget _buildContent(NotesProvider notesProvider) {
+    switch (notesProvider.status) {
+      case NotesStatus.initial:
+      case NotesStatus.loading:
+        return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        );
+
+      case NotesStatus.error:
+        return _ErrorState(
+          message: notesProvider.errorMessage ?? 'Une erreur est survenue.',
+          onRetry: () => notesProvider.loadNotes(),
+        );
+
+      case NotesStatus.loaded:
+        if (notesProvider.notes.isEmpty) {
+          return const _EmptyState();
+        }
+        return RefreshIndicator(
+          onRefresh: notesProvider.loadNotes,
+          color: AppColors.primary,
+          child: ListView.separated(
+            padding: const EdgeInsets.all(20),
+            itemCount: notesProvider.notes.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final note = notesProvider.notes[index];
+              return NoteCard(
+                note: note,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => NoteFormPage(existingNote: note),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        );
+    }
   }
 }
 
